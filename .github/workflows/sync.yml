@@ -1,0 +1,35 @@
+name: Sync Clockify to Redmine
+
+on:
+  schedule:
+    # Roda todos os dias às 07:00 da manhã (UTC) = 04:00 (Horário de Brasília)
+    # Ajuste o horário UTC conforme preferir
+    - cron: '0 10 * * *' 
+  workflow_dispatch: # Permite disparar manualmente pelo botão no GitHub se precisar
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v3
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Executar Sincronização
+        env:
+          REDMINE_URL: ${{ secrets.REDMINE_URL }}
+          REDMINE_API_KEY: ${{ secrets.REDMINE_API_KEY }}
+          CLOCKIFY_API_KEY: ${{ secrets.CLOCKIFY_API_KEY }}
+          CLOCKIFY_WORKSPACE_ID: ${{ secrets.CLOCKIFY_WORKSPACE_ID }}
+          DEFAULT_REDMINE_ACTIVITY_ID: ${{ secrets.DEFAULT_REDMINE_ACTIVITY_ID }}
+        run: python main.py
