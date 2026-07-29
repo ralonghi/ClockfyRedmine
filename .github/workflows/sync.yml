@@ -26,6 +26,7 @@ jobs:
 
       - name: Executar Sincronização
         env:
+          PYTHONIOENCODING: "utf-8"  # <--- FORÇA UTF-8 NO CONSOLE
           REDMINE_URL: ${{ secrets.REDMINE_URL }}
           REDMINE_API_KEY: ${{ secrets.REDMINE_API_KEY }}
           CLOCKIFY_API_KEY: ${{ secrets.CLOCKIFY_API_KEY }}
