@@ -32,4 +32,5 @@ jobs:
           CLOCKIFY_API_KEY: ${{ secrets.CLOCKIFY_API_KEY }}
           CLOCKIFY_WORKSPACE_ID: ${{ secrets.CLOCKIFY_WORKSPACE_ID }}
           DEFAULT_REDMINE_ACTIVITY_ID: ${{ secrets.DEFAULT_REDMINE_ACTIVITY_ID }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: python main.py

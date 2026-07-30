@@ -59,3 +59,23 @@ def post_time_entry(redmine_url, headers, activity_id, issue_id, spent_on, hours
     }
     res = requests.post(url, headers=headers, json=payload)
     return res.status_code == 201, res.text
+
+def send_error_notification(target_date, error_message, webhook_url=None):
+    """Envia um alerta destacado de falha/erro para o Discord."""
+    lines = []
+    lines.append("============================================================")
+    lines.append("🚨 **FALHA NA SINCRONIZAÇÃO CLOCKIFY -> REDMINE**")
+    lines.append("============================================================")
+    lines.append(f"**Data de execução:** {target_date}")
+    lines.append(f"**Erro:** `{error_message}`")
+    lines.append("\n💡 *Verifique os logs no GitHub Actions para mais detalhes.*")
+    lines.append("============================================================")
+
+    full_message = "\n".join(lines)
+    
+    # Imprime no terminal
+    print(full_message)
+
+    # Envia para o Discord
+    if webhook_url:
+        send_discord_message(webhook_url, full_message)

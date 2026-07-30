@@ -7,23 +7,29 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def get_config():
-    """Retorna as configurações carregadas do ambiente (.env local ou Secrets do GitHub)."""
-    config = {
-        "REDMINE_URL": os.getenv("REDMINE_URL"),
-        "REDMINE_API_KEY": os.getenv("REDMINE_API_KEY"),
-        "CLOCKIFY_API_KEY": os.getenv("CLOCKIFY_API_KEY"),
-        "CLOCKIFY_WORKSPACE_ID": os.getenv("CLOCKIFY_WORKSPACE_ID"),
-        "DEFAULT_REDMINE_ACTIVITY_ID": int(os.getenv("DEFAULT_REDMINE_ACTIVITY_ID", "9"))
-    }
-
-    # Validação para garantir que nenhuma variável obrigatória ficou vazia
-    required_keys = ["REDMINE_URL", "REDMINE_API_KEY", "CLOCKIFY_API_KEY", "CLOCKIFY_WORKSPACE_ID"]
-    missing_keys = [key for key in required_keys if not config[key]]
+    load_dotenv()
+    
+    required_keys = [
+        "REDMINE_URL",
+        "REDMINE_API_KEY",
+        "CLOCKIFY_API_KEY",
+        "CLOCKIFY_WORKSPACE_ID",
+        "DEFAULT_REDMINE_ACTIVITY_ID"
+    ]
+    
+    config = {}
+    missing_keys = []
+    
+    for key in required_keys:
+        value = os.getenv(key)
+        if not value:
+            missing_keys.append(key)
+        config[key] = value
 
     if missing_keys:
-        raise ValueError(
-            f"❌ Configurações ausentes: {', '.join(missing_keys)}.\n"
-            "Verifique se o arquivo .env local existe ou se as Secrets no GitHub foram cadastradas."
-        )
+        raise ValueError(f"⚠️ As seguintes variáveis de ambiente estão faltando: {', '.join(missing_keys)}")
+
+    # Discord Webhook é opcional
+    config["DISCORD_WEBHOOK_URL"] = os.getenv("DISCORD_WEBHOOK_URL")
 
     return config
