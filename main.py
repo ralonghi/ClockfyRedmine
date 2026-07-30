@@ -1,10 +1,16 @@
 import sys
+import io
 from datetime import datetime, timedelta
 from collections import defaultdict
 
 from config import get_config
 import clockify_service as clockify
 import redmine_service as redmine
+import reporter_service as reporter
+
+# Garante UTF-8 no console do Windows
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 def main():
     print("=== Sincronizador Clockify -> Redmine ===")
@@ -15,7 +21,7 @@ def main():
         print(e)
         return
 
-    # Define a data do parâmetro CLI ou assume D-1 por padrão
+    # Define a data do parâmetro CLI ou D-1 por padrão
     if len(sys.argv) > 1:
         target_date = sys.argv[1]
         print(f"🎯 Modo Manual/Teste: Processando data informada: {target_date}")
@@ -31,7 +37,7 @@ def main():
         redmine_user_id = redmine.get_current_user_id(cfg["REDMINE_URL"], redmine_headers)
         redmine.delete_user_time_entries(cfg["REDMINE_URL"], redmine_headers, redmine_user_id, target_date)
     except Exception as e:
-        print(f"⚠️  Erro ao verificar/limpar lançamentos antigos no Redmine: {e}")
+        print(f"⚠️ Erro ao verificar/limpar lançamentos antigos no Redmine: {e}")
         return
 
     # 2. Busca lançamentos no Clockify
@@ -44,14 +50,13 @@ def main():
         print(f"❌ Erro na API do Clockify: {e}")
         return
 
-    # 3. Consolidação e Agrupamento por Issue
+    # 3. Consolidação dos Dados
     grouped_entries = defaultdict(lambda: {"total_hours": 0.0, "comments": []})
     unlinked_entries = []
 
     for entry in entries:
         description = entry.get("description", "").strip()
         issue_id = clockify.extract_redmine_issue_id(description)
-        
         time_interval = entry.get("timeInterval", {})
         hours = clockify.parse_duration_to_hours(time_interval.get("start"), time_interval.get("end"))
         
@@ -63,26 +68,19 @@ def main():
             continue
 
         comment = clockify.extract_comment(description)
-
         grouped_entries[issue_id]["total_hours"] += hours
         if comment and comment not in grouped_entries[issue_id]["comments"]:
             grouped_entries[issue_id]["comments"].append(comment)
 
-    # 4. Envio dos dados consolidados ao Redmine
+    # 4. Envio ao Redmine
     print(f"\n📊 Total de {len(grouped_entries)} issue(s) consolidada(s) para lançamento.")
-
     for issue_id, data in grouped_entries.items():
         total_hours = round(data["total_hours"], 2)
         combined_comment = " | ".join(data["comments"])
 
         success, response = redmine.post_time_entry(
-            cfg["REDMINE_URL"],
-            redmine_headers,
-            cfg["DEFAULT_REDMINE_ACTIVITY_ID"],
-            issue_id,
-            target_date,
-            total_hours,
-            combined_comment
+            cfg["REDMINE_URL"], redmine_headers, cfg["DEFAULT_REDMINE_ACTIVITY_ID"],
+            issue_id, target_date, total_hours, combined_comment
         )
         if success:
             comment_log = f" ('{combined_comment}')" if combined_comment else " (Sem comentário)"
@@ -90,21 +88,9 @@ def main():
         else:
             print(f"❌ Erro na Issue #{issue_id}: {response}")
 
-    # 5. Alerta de registros não vinculados
-    if unlinked_entries:
-        total_unlinked_hours = sum(e["hours"] for e in unlinked_entries)
-        print("\n" + "="*60)
-        print("⚠️  ATENÇÃO: EXISTEM REGISTROS NÃO VINCULADOS AO REDMINE!")
-        print(f"Foram encontrados {len(unlinked_entries)} apontamento(s) sem #ID ({total_unlinked_hours}h no total).")
-        print("Estes registros NÃO foram sincronizados:\n")
-        
-        for item in unlinked_entries:
-            print(f"  • {item['hours']}h - '{item['description']}'")
-            
-        print("\n💡 RECOMENDAÇÃO: Corrija os registros no Clockify adicionando o #ID ")
-        print(f"   e rode novamente o script para a data {target_date}:")
-        print(f"   python main.py {target_date}")
-        print("="*60 + "\n")
+    # 5. Relatórios e Alertas
+    reporter.print_daily_summary(target_date, grouped_entries)
+    reporter.print_unlinked_entries_warning(target_date, unlinked_entries)
 
 if __name__ == "__main__":
     main()
