@@ -32,7 +32,7 @@ def main():
     clockify_headers = {"X-Api-Key": cfg["CLOCKIFY_API_KEY"], "Content-Type": "application/json"}
     redmine_headers = {"X-Redmine-API-Key": cfg["REDMINE_API_KEY"], "Content-Type": "application/json"}
 
-    # 1. Limpeza segura no Redmine
+    # 1. Limpeza segura no Redmine (apenas registros do próprio usuário)
     try:
         redmine_user_id = redmine.get_current_user_id(cfg["REDMINE_URL"], redmine_headers)
         redmine.delete_user_time_entries(cfg["REDMINE_URL"], redmine_headers, redmine_user_id, target_date)
@@ -71,6 +71,12 @@ def main():
         grouped_entries[issue_id]["total_hours"] += hours
         if comment and comment not in grouped_entries[issue_id]["comments"]:
             grouped_entries[issue_id]["comments"].append(comment)
+
+    # 3.1 Busca o título de cada issue no Redmine para o relatório da Daily
+    for issue_id in grouped_entries.keys():
+        grouped_entries[issue_id]["subject"] = redmine.get_issue_subject(
+            cfg["REDMINE_URL"], redmine_headers, issue_id
+        )
 
     # 4. Envio ao Redmine
     print(f"\n📊 Total de {len(grouped_entries)} issue(s) consolidada(s) para lançamento.")

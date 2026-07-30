@@ -1,5 +1,5 @@
 def print_daily_summary(target_date, grouped_entries):
-    """Gera o resumo formatado para a reunião Daily e valida a carga horária de 8h."""
+    """Gera o resumo formatado para a reunião Daily com os títulos das issues."""
     total_day_hours = sum(d["total_hours"] for d in grouped_entries.values())
     total_day_hours_rounded = round(total_day_hours, 2)
 
@@ -9,15 +9,15 @@ def print_daily_summary(target_date, grouped_entries):
 
     if grouped_entries:
         for issue_id, data in grouped_entries.items():
-            hrs = round(data["total_hours"], 2)
-            desc = " | ".join(data["comments"]) if data["comments"] else "Sem descrição detalhada"
-            print(f"• Issue #{issue_id} ({hrs}h): {desc}")
+            subject = data.get("subject", "Sem título")
+            desc = " | ".join(data["comments"]) if data["comments"] else "Sem descrição"
+            print(f"#{issue_id} [{subject}], {desc}")
     else:
         print("ℹ️ Nenhum lançamento com issue encontrado para esta data.")
 
     print(f"\n⏱️ Total de horas sincronizadas: {total_day_hours_rounded}h / 8.00h")
 
-    # Alerta se a carga horária for inferior a 8h
+    # Alerta de carga horária insuficiente
     if total_day_hours_rounded < 8.0:
         missing_hours = round(8.0 - total_day_hours_rounded, 2)
         print("\n⚠️  ALERTA DE CARGA HORÁRIA:")

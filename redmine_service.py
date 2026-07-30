@@ -7,6 +7,17 @@ def get_current_user_id(redmine_url, headers):
     res.raise_for_status()
     return res.json().get("user", {}).get("id")
 
+def get_issue_subject(redmine_url, headers, issue_id):
+    """Busca o título/assunto de uma issue no Redmine."""
+    url = f"{redmine_url.rstrip('/')}/issues/{issue_id}.json"
+    try:
+        res = requests.get(url, headers=headers)
+        if res.status_code == 200:
+            return res.json().get("issue", {}).get("subject", "Sem título")
+    except Exception:
+        pass
+    return "Sem título"
+
 def delete_user_time_entries(redmine_url, headers, user_id, target_date_str):
     """Deleta EXCLUSIVAMENTE os lançamentos do próprio usuário na data especificada."""
     url = f"{redmine_url.rstrip('/')}/time_entries.json"
