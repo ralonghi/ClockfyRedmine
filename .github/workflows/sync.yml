@@ -2,8 +2,8 @@ name: Sync Clockify to Redmine
 
 on:
   schedule:
-    # Roda todos os dias às 10:00 UTC (07:00 Horário de Brasília)
-    - cron: '0 10 * * *' 
+    # Roda todos os dias às 8:58 UTC (05:58 Horário de Brasília)
+    - cron: '58 8 * * *'
   workflow_dispatch: # Permite o disparo manual no painel
 
 jobs:
