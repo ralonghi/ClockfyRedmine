@@ -1,97 +1,61 @@
 import requests
 
-def send_discord_message(webhook_url, message):
-    """Envia uma mensagem formatada para o Discord via Webhook."""
-    if not webhook_url:
-        return
+def get_current_user_id(redmine_url, headers):
+    """Obtém o ID do usuário dono da API Key no Redmine."""
+    url = f"{redmine_url.rstrip('/')}/users/current.json"
+    res = requests.get(url, headers=headers)
+    res.raise_for_status()
+    return res.json().get("user", {}).get("id")
+
+def get_issue_subject(redmine_url, headers, issue_id):
+    """Busca o título/assunto de uma issue no Redmine."""
+    url = f"{redmine_url.rstrip('/')}/issues/{issue_id}.json"
     try:
-        payload = {"content": message}
-        requests.post(webhook_url, json=payload)
-    except Exception as e:
-        print(f"⚠️ Erro ao enviar notificação para o Discord: {e}")
+        res = requests.get(url, headers=headers)
+        if res.status_code == 200:
+            return res.json().get("issue", {}).get("subject", "Sem título")
+    except Exception:
+        pass
+    return "Sem título"
 
-def print_daily_summary(target_date, grouped_entries, webhook_url=None):
-    """Gera o resumo formatado para a reunião Daily com os títulos das issues."""
-    total_day_hours = sum(d["total_hours"] for d in grouped_entries.values())
-    total_day_hours_rounded = round(total_day_hours, 2)
-
-    lines = []
-    lines.append("============================================================")
-    lines.append(f"📋 **RESUMO PARA A DAILY (ONTEM - {target_date})**")
-    lines.append("============================================================")
-
-    if grouped_entries:
-        for issue_id, data in grouped_entries.items():
-            subject = data.get("subject", "Sem título")
-            desc = " | ".join(data["comments"]) if data["comments"] else "Sem descrição"
-            lines.append(f"• **#{issue_id}** [{subject}], {desc}")
-    else:
-        lines.append("ℹ️ Nenhum lançamento com issue encontrado para esta data.")
-
-    lines.append(f"\n⏱️ **Total de horas sincronizadas:** {total_day_hours_rounded}h / 8.00h")
-
-    # Alerta de carga horária insuficiente
-    if total_day_hours_rounded < 8.0:
-        missing_hours = round(8.0 - total_day_hours_rounded, 2)
-        lines.append("\n⚠️ **ALERTA DE CARGA HORÁRIA:**")
-        lines.append(f"   A soma total de horas ({total_day_hours_rounded}h) é **INFERIOR** a 08:00h!")
-        lines.append(f"   Faltam **{missing_hours}h** para completar a jornada diária.")
+def delete_user_time_entries(redmine_url, headers, user_id, target_date_str):
+    """Deleta EXCLUSIVAMENTE os lançamentos do próprio usuário na data especificada."""
+    url = f"{redmine_url.rstrip('/')}/time_entries.json"
+    params = {
+        "user_id": user_id,
+        "spent_on": target_date_str,
+        "limit": 100
+    }
+    res = requests.get(url, headers=headers, params=params)
+    res.raise_for_status()
     
-    lines.append("============================================================")
-
-    full_message = "\n".join(lines)
-    
-    # Imprime no terminal
-    print(full_message)
-
-    # Envia para o Discord
-    if webhook_url:
-        send_discord_message(webhook_url, full_message)
-
-def print_unlinked_entries_warning(target_date, unlinked_entries, webhook_url=None):
-    """Exibe alerta destacado caso existam horas sem #ID no Clockify."""
-    if not unlinked_entries:
+    entries = res.json().get("time_entries", [])
+    if not entries:
+        print(f"ℹ️  Nenhum registro prévio seu encontrado no Redmine para {target_date_str}.")
         return
 
-    total_unlinked_hours = round(sum(e["hours"] for e in unlinked_entries), 2)
+    print(f"🧹 Deletando {len(entries)} registro(s) anterior(es) SEUS no Redmine para {target_date_str}...")
     
-    lines = []
-    lines.append("\n============================================================")
-    lines.append("⚠️ **ATENÇÃO: EXISTEM REGISTROS NÃO VINCULADOS AO REDMINE!**")
-    lines.append(f"Foram encontrados **{len(unlinked_entries)}** apontamento(s) sem #ID ({total_unlinked_hours}h no total).")
-    lines.append("Estes registros **NÃO** foram sincronizados:\n")
-    
-    for item in unlinked_entries:
-        lines.append(f"  • {item['hours']}h - `{item['description']}`")
-        
-    lines.append(f"\n💡 **RECOMENDAÇÃO:** Corrija os registros no Clockify adicionando o #ID e rode novamente o script para {target_date}.")
-    lines.append("============================================================")
+    for entry in entries:
+        entry_id = entry["id"]
+        del_url = f"{redmine_url.rstrip('/')}/time_entries/{entry_id}.json"
+        del_res = requests.delete(del_url, headers=headers)
+        if del_res.status_code in (200, 204):
+            print(f"   🗑️  Lançamento anterior #{entry_id} removido com sucesso.")
+        else:
+            print(f"   ⚠️  Falha ao remover lançamento #{entry_id}: {del_res.text}")
 
-    full_message = "\n".join(lines)
-
-    # Imprime no terminal
-    print(full_message)
-
-    # Envia para o Discord
-    if webhook_url:
-        send_discord_message(webhook_url, full_message)
-
-def send_error_notification(target_date, error_message, webhook_url=None):
-    """Envia um alerta destacado de falha/erro para o Discord."""
-    lines = []
-    lines.append("============================================================")
-    lines.append("🚨 **FALHA NA SINCRONIZAÇÃO CLOCKIFY -> REDMINE**")
-    lines.append("============================================================")
-    lines.append(f"**Data de execução:** {target_date}")
-    lines.append(f"**Erro:** `{error_message}`")
-    lines.append("\n💡 *Verifique os logs no GitHub Actions para mais detalhes.*")
-    lines.append("============================================================")
-
-    full_message = "\n".join(lines)
-    
-    # Imprime no terminal
-    print(full_message)
-
-    # Envia para o Discord
-    if webhook_url:
-        send_discord_message(webhook_url, full_message)
+def post_time_entry(redmine_url, headers, activity_id, issue_id, spent_on, hours, comments):
+    """Registra uma nova entrada de tempo no Redmine."""
+    url = f"{redmine_url.rstrip('/')}/time_entries.json"
+    payload = {
+        "time_entry": {
+            "issue_id": issue_id,
+            "spent_on": spent_on,
+            "hours": hours,
+            "activity_id": activity_id,
+            "comments": comments
+        }
+    }
+    res = requests.post(url, headers=headers, json=payload)
+    return res.status_code == 201, res.text
